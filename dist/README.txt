@@ -1,13 +1,13 @@
-ZwartFlow v2.1
+ZwartFlow v2.2
 ==============
 
 Router AI agent untuk Windows. Task masuk -> dinilai kompleksitasnya (lokal, tanpa API)
 -> dipilihkan provider/model (FAST/BALANCED/HEAVY) -> CLI agent
-(codex / claude / agy / gemini / opencode) dijalankan di console baru.
+(codex / claude / agy / gemini / opencode / cmdc) dijalankan di console baru.
 
-v2.1: ganti framework ke C# WinForms (.NET Framework 4.8 bawaan Windows).
-Exe native ~60 KB, start instan, tanpa Python/PyInstaller.
-CLI dan desktop app (Codex, Claude) sekarang menjadi entri terpisah.
+v2.2: tampilan dirancang ulang (alur 3 langkah, logo asli provider, layout aman di DPI >100%),
+deteksi CLI wildcard path (Codex/Claude terinstal di folder versi), deteksi app Microsoft
+Store + buka via AUMID, provider baru Command Code CLI (live --list-models).
 
 Cara pakai:
 1. Jalankan ZwartFlow.exe (config.json opsional - exe menulis default sendiri jika tidak ada)

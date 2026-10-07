@@ -22,7 +22,7 @@ namespace ZwartFlow
         [STAThread]
         static void Main()
         {
-            try { Marshal.ThrowExceptionForHR(UnsafeNative.SetProcessDpiAwareness(2)); } catch { }
+            try { Marshal.ThrowExceptionForHR(UnsafeNative.SetProcessDpiAwareness(1)); } catch { }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.ThreadException += (s, e) =>
@@ -58,6 +58,7 @@ namespace ZwartFlow
     {
         public string CliPath;
         public string DesktopPath;
+        public string LaunchTarget;
         public string Note = "";
         public bool Done;
         public List<ModelInfo> Models = new List<ModelInfo>();
@@ -112,8 +113,10 @@ namespace ZwartFlow
         Dictionary<string, object> _defaultCfg;
         readonly Dictionary<string, ProviderEntry> _entries = new Dictionary<string, ProviderEntry>();
         readonly Dictionary<string, ProviderState> _states = new Dictionary<string, ProviderState>();
+        readonly Dictionary<string, Image> _logos = new Dictionary<string, Image>();
         readonly Dictionary<string, Panel> _cardPanels = new Dictionary<string, Panel>();
         readonly Dictionary<string, Label> _cardStatus = new Dictionary<string, Label>();
+        readonly Dictionary<string, Panel> _cardStrips = new Dictionary<string, Panel>();
         string _selectedKey = "auto";
         ModelInfo _selectedModel;
         string _selectedProviderKey;
@@ -122,10 +125,13 @@ namespace ZwartFlow
         // ------------------------------------------------------------ UI
         TableLayoutPanel _cardsTlp;
         TextBox _taskBox;
-        Label _chipProvider, _chipTier, _chipDeleg;
-        Label _reasonLabel;
-        TableLayoutPanel _modelsTlp;
+        Label _resultTier;
+        Label _resultMain;
+        Label _resultSub;
+        Button _runBtn;
+        Panel _resultCard;
         Label _modelsHint;
+        TableLayoutPanel _modelsTlp;
         Label _statusLabel;
 
         public MainForm()
@@ -134,13 +140,15 @@ namespace ZwartFlow
 
             Text = "ZwartFlow";
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(1160, 740);
-            MinimumSize = new Size(960, 620);
+            ClientSize = new Size(1120, 720);
+            MinimumSize = new Size(900, 600);
             BackColor = BG;
             Font = new Font("Segoe UI", 9.5F);
+            AutoScaleMode = AutoScaleMode.Font;
             DoubleBuffered = true;
 
             LoadConfig();
+            LoadLogos();
             BuildEntries();
             BuildUi();
             RefreshCards();
@@ -153,25 +161,34 @@ namespace ZwartFlow
         public static Dictionary<string, object> DefaultConfig()
         {
             return JMap(
-                "version", 5,
+                "version", 6,
                 "ui", JMap("preferred_provider", "codex-cli", "confirm_before_run", true),
                 "router", JMap("simple_threshold", -1, "heavy_threshold", 4, "max_parallel_workers", 4),
                 "providers", JMap(
                     "codex-cli", JMap(
                         "name", "Codex CLI", "vendor", "OpenAI", "kind", "cli",
-                        "executable_candidates", JList("codex.exe", "codex.cmd", "codex"),
+                        "executable_candidates", JList(
+                            "codex.exe", "codex.cmd", "codex",
+                            "%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\*\\codex.exe"),
                         "desktop_candidates", JList(),
                         "discover", JMap("type", "command_json", "command", JList("debug", "models"), "timeout", 45),
                         "run", JMap("command", JList("exec", "--model", "{model}", "{prompt}"))),
                     "codex-app", JMap(
                         "name", "Codex App", "vendor", "OpenAI", "kind", "desktop",
+                        "store", "^OpenAI\\.Codex$",
                         "executable_candidates", JList(),
                         "desktop_candidates", JList(
-                            "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\Codex.exe",
-                            "%LOCALAPPDATA%\\Programs\\Codex\\Codex.exe")),
+                            "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\codex.exe",
+                            "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\OpenAI.Codex_*\\codex.exe")),
                     "claude-cli", JMap(
                         "name", "Claude CLI", "vendor", "Anthropic", "kind", "cli",
-                        "executable_candidates", JList("claude.exe", "claude.cmd", "claude"),
+                        "executable_candidates", JList(
+                            "claude.exe", "claude.cmd", "claude",
+                            "%APPDATA%\\Claude\\claude-code\\*\\*\\claude.exe",
+                            "%APPDATA%\\Claude\\claude-code\\*\\claude.exe",
+                            "%USERPROFILE%\\.local\\bin\\claude.exe",
+                            "%USERPROFILE%\\.claude\\local\\claude.exe",
+                            "%LOCALAPPDATA%\\AnthropicClaude\\claude.exe"),
                         "desktop_candidates", JList(),
                         "discover", JMap("type", "aliases",
                             "aliases", JList(
@@ -182,16 +199,26 @@ namespace ZwartFlow
                         "run", JMap("command", JList("-p", "--model", "{model}", "{prompt}"))),
                     "claude-app", JMap(
                         "name", "Claude App", "vendor", "Anthropic", "kind", "desktop",
+                        "store", "^Claude$",
                         "executable_candidates", JList(),
                         "desktop_candidates", JList(
-                            "%LOCALAPPDATA%\\Programs\\Claude\\Claude.exe",
-                            "%LOCALAPPDATA%\\AnthropicClaude\\Claude.exe")),
-                    "antigravity", JMap(
-                        "name", "Antigravity", "vendor", "Google", "kind", "cli",
-                        "executable_candidates", JList("agy.exe", "agy.cmd", "agy", "%LOCALAPPDATA%\\agy\\bin\\agy.exe"),
+                            "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\claude-desktop.exe",
+                            "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\Claude_*\\claude-desktop.exe")),
+                    "antigravity-cli", JMap(
+                        "name", "Antigravity CLI", "vendor", "Google", "kind", "cli",
+                        "executable_candidates", JList(
+                            "agy.exe", "agy.cmd", "agy",
+                            "%LOCALAPPDATA%\\agy\\bin\\agy.exe"),
                         "desktop_candidates", JList(),
                         "discover", JMap("type", "command_table", "command", JList("models"), "timeout", 25),
                         "run", JMap("command", JList("-p", "{prompt}", "--model", "{model}"))),
+                    "antigravity-app", JMap(
+                        "name", "Antigravity IDE", "vendor", "Google", "kind", "desktop",
+                        "store", "^Antigravity( IDE)?$",
+                        "executable_candidates", JList(),
+                        "desktop_candidates", JList(
+                            "%LOCALAPPDATA%\\Programs\\Antigravity IDE\\Antigravity IDE.exe",
+                            "%LOCALAPPDATA%\\Programs\\Antigravity\\Antigravity.exe")),
                     "gemini", JMap(
                         "name", "Gemini CLI", "vendor", "Google", "kind", "cli",
                         "executable_candidates", JList("gemini.exe", "gemini.cmd", "gemini"),
@@ -203,11 +230,21 @@ namespace ZwartFlow
                             "note", "Alias resmi Google."),
                         "run", JMap("command", JList("-m", "{model}", "{prompt}"))),
                     "opencode", JMap(
-                        "name", "OpenCode", "vendor", "Community", "kind", "cli",
-                        "executable_candidates", JList("opencode.exe", "opencode.cmd", "opencode"),
+                        "name", "OpenCode CLI", "vendor", "Community", "kind", "cli",
+                        "executable_candidates", JList(
+                            "opencode.exe", "opencode.cmd", "opencode",
+                            "%APPDATA%\\npm\\opencode.cmd"),
                         "desktop_candidates", JList(),
                         "discover", JMap("type", "command_table", "command", JList("models"), "timeout", 20),
                         "run", JMap("command", JList("run", "--model", "{model}", "{prompt}"))),
+                    "commandcode", JMap(
+                        "name", "Command Code CLI", "vendor", "Command Code", "kind", "cli",
+                        "executable_candidates", JList(
+                            "cmdc.exe", "cmdc.cmd", "cmdc",
+                            "%APPDATA%\\npm\\cmdc.cmd"),
+                        "desktop_candidates", JList(),
+                        "discover", JMap("type", "command_table", "command", JList("--list-models"), "timeout", 30),
+                        "run", JMap("command", JList("-p", "-m", "{model}", "{prompt}"))),
                     "custom", JMap(
                         "name", "Custom Agent", "vendor", "Lainnya", "kind", "cli",
                         "executable_candidates", JList(),
@@ -235,7 +272,23 @@ namespace ZwartFlow
         }
 
         static Dictionary<string, object> AsMap(object o) { return o as Dictionary<string, object>; }
-        static List<object> AsList(object o) { return o as List<object>; }
+
+        // JavaScriptSerializer menghasilkan ArrayList utk array JSON, bukan List<object>
+        static List<object> AsList(object o)
+        {
+            if (o is List<object>) return (List<object>)o;
+            var al = o as System.Collections.ArrayList;
+            if (al != null)
+            {
+                var l = new List<object>();
+                foreach (var x in al) l.Add(x);
+                return l;
+            }
+            var arr = o as object[];
+            if (arr != null) return new List<object>(arr);
+            return null;
+        }
+
         static string Str(object o) { return o == null ? "" : o.ToString(); }
 
         string ConfigPath()
@@ -255,6 +308,22 @@ namespace ZwartFlow
             catch { loaded = null; }
 
             var cfg = loaded ?? new Dictionary<string, object>();
+
+            // migrasi: config pra-v6 pakai candidate lama yang salah path - ganti
+            // definisi provider bawaan, user hanya mempertahankan provider tambahan miliknya
+            int cfgVersion = ToInt(cfg.ContainsKey("version") ? cfg["version"] : null, 0);
+            if (cfgVersion < 6)
+            {
+                cfg["version"] = 6;
+                var defProviders = AsMap(_defaultCfg["providers"]);
+                var userProviders = AsMap(cfg.ContainsKey("providers") ? cfg["providers"] : null) ?? new Dictionary<string, object>();
+                var migrated = new Dictionary<string, object>();
+                foreach (var dk in defProviders.Keys) migrated[dk] = defProviders[dk];
+                foreach (var uk in userProviders.Keys)
+                    if (!migrated.ContainsKey(uk)) migrated[uk] = userProviders[uk]; // provider kustom user dipertahankan
+                cfg["providers"] = migrated;
+            }
+
             MergeDefault(cfg, _defaultCfg);
             _cfg = cfg;
             if (!File.Exists(path)) SafeSaveConfig(cfg);
@@ -418,6 +487,58 @@ namespace ZwartFlow
             return Environment.ExpandEnvironmentVariables(v);
         }
 
+        // dukung wildcard di tengah path, mis. %APPDATA%\Claude\claude-code\*\*\claude.exe
+        string ExpandWild(string pattern)
+        {
+            try
+            {
+                var parts = pattern.Split('\\');
+                var dirs = new List<string>();
+                var start = parts[0];
+                if (start.EndsWith(":") || start.Length == 2) dirs.Add(start + "\\");
+                else dirs.Add(start);
+
+                for (int i = 1; i < parts.Length; i++)
+                {
+                    var seg = parts[i];
+                    var next = new List<string>();
+                    bool isLast = i == parts.Length - 1;
+                    foreach (var d in dirs)
+                    {
+                        if (seg.IndexOfAny(new[] { '*', '?' }) >= 0)
+                        {
+                            if (isLast)
+                            {
+                                foreach (var f in Directory.GetFiles(d, seg))
+                                    return f; // file pertama yang cocok
+                            }
+                            else
+                            {
+                                foreach (var sub in Directory.GetDirectories(d, seg))
+                                    next.Add(sub);
+                            }
+                        }
+                        else
+                        {
+                            var cand = isLast ? Path.Combine(d, seg) : Path.Combine(d, seg);
+                            if (isLast)
+                            {
+                                if (File.Exists(cand)) return cand;
+                            }
+                            else if (Directory.Exists(cand)) next.Add(cand);
+                        }
+                    }
+                    if (!isLast)
+                    {
+                        if (next.Count == 0) return null;
+                        dirs = next;
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
         string ResolveCandidates(List<object> candidates)
         {
             if (candidates == null) return null;
@@ -426,6 +547,14 @@ namespace ZwartFlow
                 var raw = Str(rawObj);
                 if (string.IsNullOrWhiteSpace(raw)) continue;
                 var v = ExpandPath(raw);
+
+                if (v.IndexOfAny(new[] { '*', '?' }) >= 0)
+                {
+                    var hit = ExpandWild(v);
+                    if (hit != null) return hit;
+                    continue;
+                }
+
                 try
                 {
                     var dir = Path.GetDirectoryName(v);
@@ -460,9 +589,86 @@ namespace ZwartFlow
                 var raw = Str(rawObj);
                 if (string.IsNullOrWhiteSpace(raw)) continue;
                 var v = ExpandPath(raw);
+                if (v.IndexOfAny(new[] { '*', '?' }) >= 0)
+                {
+                    var hit = ExpandWild(v);
+                    if (hit != null) return hit;
+                    continue;
+                }
                 if (File.Exists(v)) return v;
             }
             return null;
+        }
+
+        // ------------------------------------------------------------ store app
+
+        List<string[]> _storeApps; // [name, family, appId, exe, version]
+
+        void EnsureStoreInventory()
+        {
+            if (_storeApps != null) return;
+            _storeApps = new List<string[]>();
+            try
+            {
+                var ps = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
+                if (!File.Exists(ps)) return;
+                var script =
+                    "$ErrorActionPreference='SilentlyContinue'\n" +
+                    "$targets=@('OpenAI.Codex','Claude','Antigravity','OpenCode','Gemini')\n" +
+                    "$apps = Get-AppxPackage | Where-Object { $targets -contains $_.Name } | ForEach-Object {\n" +
+                    "  $p=$_; $m=Get-AppxPackageManifest -Package $p.PackageFullName\n" +
+                    "  if ($m -and $m.Package.Applications) { foreach($a in $m.Package.Applications.Application){\n" +
+                    "    [pscustomobject]@{name=$p.Name; family=$p.PackageFamilyName; appId=[string]$a.Id; exe=[string]$a.Executable; version=[string]$p.Version} } }\n" +
+                    "}\n" +
+                    "$apps | ConvertTo-Json -Depth 3 -Compress";
+                var r = CaptureCli(ps, "-NoProfile -NonInteractive -Command " + QuoteArg(script), 20000);
+                if (r.ExitCode == 0 && !string.IsNullOrWhiteSpace(r.StdOut))
+                {
+                    var data = _json.DeserializeObject(r.StdOut.Trim());
+                    if (data is Dictionary<string, object>)
+                        AddStoreApp(AsMap(data));
+                    else if (data is System.Collections.IEnumerable && !(data is string))
+                        foreach (var item in (System.Collections.IEnumerable)data)
+                            AddStoreApp(AsMap(item));
+                }
+            }
+            catch { }
+        }
+
+        void AddStoreApp(Dictionary<string, object> m)
+        {
+            if (m == null || !m.ContainsKey("family")) return;
+            _storeApps.Add(new[]
+            {
+                Str(m.ContainsKey("name") ? m["name"] : ""),
+                Str(m["family"]),
+                Str(m.ContainsKey("appId") ? m["appId"] : "App"),
+                Str(m.ContainsKey("exe") ? m["exe"] : ""),
+                Str(m.ContainsKey("version") ? m["version"] : "")
+            });
+        }
+
+        string FindStoreApp(string nameRegex)
+        {
+            if (_storeApps == null || string.IsNullOrEmpty(nameRegex)) return null;
+            var re = new Regex(nameRegex, RegexOptions.IgnoreCase);
+            foreach (var a in _storeApps)
+                if (re.IsMatch(a[0])) return a[1] + "!" + a[2];
+            return null;
+        }
+
+        void LaunchApp(string target)
+        {
+            if (string.IsNullOrEmpty(target)) return;
+            if (target.StartsWith("aumid:", StringComparison.OrdinalIgnoreCase))
+            {
+                Process.Start("explorer.exe", "shell:appsFolder\\" + target.Substring(6));
+            }
+            else
+            {
+                Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+            }
         }
 
         List<ModelInfo> ParseJsonModels(string raw)
@@ -630,12 +836,13 @@ namespace ZwartFlow
 
         void DiscoverAll()
         {
-            var remaining = _entries.Count;
-            foreach (var e in _entries.Values)
+            Task.Factory.StartNew(delegate
             {
-                var key = e.Key;
-                Task.Factory.StartNew(delegate
+                EnsureStoreInventory();
+                var remaining = _entries.Count;
+                foreach (var e in _entries.Values)
                 {
+                    var key = e.Key;
                     ProviderState st;
                     try { st = DiscoverEntry(e); }
                     catch (Exception ex)
@@ -647,12 +854,12 @@ namespace ZwartFlow
                         _states[key] = st;
                         UpdateCard(key);
                         remaining--;
-                        if (remaining <= 0) UpdateStatusSummary();
+                        if (remaining <= 0) { UpdateStatusSummary(); DumpDebugStates(); }
                         if (_selectedKey == key) ShowMain();
                         if (remaining <= 0 && _selectedKey == "auto") ShowMain();
                     });
-                });
-            }
+                }
+            });
         }
 
         void SafeInvoke(MethodInvoker action)
@@ -660,6 +867,31 @@ namespace ZwartFlow
             try
             {
                 if (IsHandleCreated && !IsDisposed) BeginInvoke(action);
+            }
+            catch { }
+        }
+
+        void DumpDebugStates()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.Append("{\n");
+                bool first = true;
+                foreach (var kv in _states)
+                {
+                    if (!first) sb.Append(",\n");
+                    first = false;
+                    var e = _entries.ContainsKey(kv.Key) ? _entries[kv.Key] : null;
+                    sb.Append("  \"").Append(kv.Key).Append("\": {\"kind\": \"").Append(e != null ? e.Kind : "?")
+                        .Append("\", \"cli\": \"").Append(kv.Value.CliPath ?? "")
+                        .Append("\", \"desktop\": \"").Append(kv.Value.DesktopPath ?? "")
+                        .Append("\", \"models\": ").Append(kv.Value.Models.Count)
+                        .Append(", \"note\": \"").Append(kv.Value.Note.Replace("\\", "\\\\").Replace("\"", "'"))
+                        .Append("\"}");
+                }
+                sb.Append("\n}");
+                File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "zwartflow-state.log"), sb.ToString());
             }
             catch { }
         }
@@ -675,7 +907,22 @@ namespace ZwartFlow
 
             if (e.Kind == "desktop")
             {
-                st.Note = st.DesktopPath != null ? "app ditemukan" : "app tidak ditemukan";
+                if (st.DesktopPath != null)
+                {
+                    st.LaunchTarget = st.DesktopPath;
+                    st.Note = "app ditemukan";
+                }
+                else
+                {
+                    var aumid = FindStoreApp(Str(conf.ContainsKey("store") ? conf["store"] : ""));
+                    if (aumid != null)
+                    {
+                        st.DesktopPath = "aumid:" + aumid;
+                        st.LaunchTarget = st.DesktopPath;
+                        st.Note = "app ditemukan (Microsoft Store)";
+                    }
+                    else st.Note = "app tidak ditemukan";
+                }
                 st.Done = true;
                 return st;
             }
@@ -786,31 +1033,67 @@ namespace ZwartFlow
 
         void BuildUi()
         {
-            // topbar
-            var topbar = new Panel { Dock = DockStyle.Top, Height = 62, BackColor = PANEL };
-            var title = new Label { Text = "ZwartFlow", AutoSize = true, ForeColor = TEXT, Font = Semibold(15), Location = new Point(18, 14) };
-            var verChip = new Label { Text = "v2.1", AutoSize = true, ForeColor = MUTED, BackColor = PANEL2, Font = new Font("Segoe UI", 8, FontStyle.Bold), Padding = new Padding(6, 2, 6, 2), Location = new Point(124, 20) };
-            var sub = new Label { Text = "Router otomatis untuk Codex CLI/App \u00b7 Claude CLI/App \u00b7 Antigravity \u00b7 Gemini \u00b7 OpenCode", AutoSize = true, ForeColor = MUTED, Location = new Point(180, 22) };
+            // topbar: judul + tombol
+            var topbar = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = PANEL };
+            var title = new Label { Text = "ZwartFlow", AutoSize = true, ForeColor = TEXT, Font = Semibold(14), Location = new Point(16, 13) };
+            var topBtns = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.LeftToRight, BackColor = PANEL, WrapContents = false, Padding = new Padding(0, 12, 14, 0) };
             var refreshBtn = Flat("Refresh", delegate { DiscoverAll(); });
             var settingsBtn = Flat("Settings", delegate { OpenSettings(); });
+            refreshBtn.Margin = new Padding(0, 0, 8, 0);
+            topBtns.Controls.Add(refreshBtn);
+            topBtns.Controls.Add(settingsBtn);
             topbar.Controls.Add(title);
-            topbar.Controls.Add(verChip);
-            topbar.Controls.Add(sub);
-            topbar.Controls.Add(refreshBtn);
-            topbar.Controls.Add(settingsBtn);
+            topbar.Controls.Add(topBtns);
 
-            // sidebar
-            var sidebar = new Panel { Dock = DockStyle.Left, Width = 250, BackColor = PANEL, Padding = new Padding(0, 14, 0, 0) };
-            var sideTitle = new Label { Text = "PROVIDERS", AutoSize = true, ForeColor = MUTED, Font = Semibold(7.5f), Location = new Point(16, 10) };
-            _cardsTlp = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoScroll = true, BackColor = PANEL, Padding = new Padding(10, 34, 10, 0) };
+            // root: sidebar kiri + area utama
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = BG, ColumnCount = 2, RowCount = 1 };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 248f));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+            // ---------- sidebar ----------
+            var sidebar = new Panel { Dock = DockStyle.Fill, BackColor = PANEL };
+            var sideHeader = new Label
+            {
+                Text = "  AGENT & APP",
+                Dock = DockStyle.Top,
+                Height = 34,
+                ForeColor = MUTED,
+                BackColor = PANEL,
+                Font = Semibold(8f),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            _cardsTlp = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                AutoScroll = true,
+                BackColor = PANEL,
+                Padding = new Padding(8, 4, 8, 8)
+            };
             _cardsTlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             sidebar.Controls.Add(_cardsTlp);
-            sidebar.Controls.Add(sideTitle);
+            sidebar.Controls.Add(sideHeader);
 
-            // task panel
-            var taskPanel = new Panel { Dock = DockStyle.Top, Height = 252, BackColor = PANEL, Padding = new Padding(14, 10, 14, 10) };
-            var taskTitle = new Label { Text = "TASK & AUTO ROUTER", AutoSize = true, ForeColor = TEXT, Font = Semibold(10), Location = new Point(14, 6) };
-            var taskSub = new Label { Text = "Dinilai 100% lokal: panjang context, langkah, paralelisasi, risiko.", AutoSize = true, ForeColor = MUTED, Location = new Point(200, 10) };
+            // ---------- main ----------
+            var main = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = BG, ColumnCount = 1, Padding = new Padding(12, 10, 12, 8) };
+            main.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f));   // step 1 label
+            main.RowStyles.Add(new RowStyle(SizeType.Percent, 30f));    // task box
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 52f));   // buttons
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 92f));   // result card
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));   // models header
+            main.RowStyles.Add(new RowStyle(SizeType.Percent, 70f));    // model list
+
+            var step1 = new Label
+            {
+                Text = "1  Tulis task kamu",
+                AutoSize = true,
+                ForeColor = TEXT,
+                BackColor = BG,
+                Font = Semibold(10f),
+                Margin = new Padding(2, 4, 0, 0)
+            };
             _taskBox = new TextBox
             {
                 Multiline = true,
@@ -818,93 +1101,112 @@ namespace ZwartFlow
                 ForeColor = TEXT,
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 10.5f),
-                Location = new Point(14, 30),
-                Size = new Size(taskPanel.Width - 28, 108),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Dock = DockStyle.Fill,
+                Margin = new Padding(2, 4, 2, 4)
             };
 
-            var chipsRow = new Panel { Location = new Point(14, 148), Size = new Size(600, 32), Anchor = AnchorStyles.Top | AnchorStyles.Left };
-            _chipProvider = Chip("PROVIDER \u2014", MUTED, PANEL2);
-            _chipTier = Chip("TIER \u2014", MUTED, PANEL2);
-            _chipDeleg = Chip("DELEGASI \u2014", MUTED, PANEL2);
-            int cx = 0;
-            foreach (var c in new[] { _chipProvider, _chipTier, _chipDeleg })
-            {
-                chipsRow.Controls.Add(c);
-                c.Location = new Point(cx, 4);
-                cx += c.PreferredWidth + 8;
-            }
-
-            var runBtn = FlatAccent("Run Selected", delegate { RunSelected(); });
-            var analyzeBtn = FlatAccent("Analyze & Route", delegate { Analyze(); });
+            var buttonsRow = new Panel { Dock = DockStyle.Fill, BackColor = BG, Margin = new Padding(0) };
+            var analyzeBtn = FlatAccent("2 \u00b7 Analyze & Route", delegate { Analyze(); });
             var clearBtn = Flat("Clear", delegate { _taskBox.Clear(); });
+            analyzeBtn.Font = Semibold(10f);
+            clearBtn.Font = new Font("Segoe UI", 9.5f);
+            analyzeBtn.Location = new Point(2, 10);
+            clearBtn.Location = new Point(analyzeBtn.Right + 10, 13);
+            buttonsRow.Controls.Add(analyzeBtn);
+            buttonsRow.Controls.Add(clearBtn);
 
-            _reasonLabel = new Label
+            // kartu hasil
+            _resultCard = new Panel { Dock = DockStyle.Fill, BackColor = PANEL2, Margin = new Padding(2, 6, 2, 6), Padding = new Padding(14, 10, 14, 10) };
+            _resultTier = new Label
             {
-                Text = "",
+                Text = "\u2014",
                 ForeColor = MUTED,
-                Font = new Font("Segoe UI", 8.5f),
                 BackColor = PANEL,
-                AutoSize = false,
-                Location = new Point(14, 190),
-                Size = new Size(taskPanel.Width - 28, 50),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                TextAlign = ContentAlignment.TopLeft
+                Font = Semibold(13f),
+                AutoSize = true,
+                Padding = new Padding(10, 8, 10, 8),
+                Location = new Point(14, 20)
             };
+            _resultMain = new Label
+            {
+                Text = "Hasil routing muncul di sini",
+                AutoSize = true,
+                ForeColor = TEXT,
+                BackColor = PANEL2,
+                Font = Semibold(11f),
+                Location = new Point(150, 16)
+            };
+            _resultSub = new Label
+            {
+                Text = "Tulis task di atas lalu tekan Analyze & Route \u2014 router menilai kompleksitas 100% lokal.",
+                AutoSize = true,
+                ForeColor = MUTED,
+                BackColor = PANEL2,
+                Font = new Font("Segoe UI", 8.5f),
+                Location = new Point(150, 44),
+                MaximumSize = new Size(470, 0),
+                UseMnemonic = false
+            };
+            _runBtn = FlatAccent("Run Selected", delegate { RunSelected(); });
+            _runBtn.Font = Semibold(10f);
+            _runBtn.Enabled = false;
+            var runFlp = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right,
+                FlowDirection = FlowDirection.TopDown,
+                BackColor = PANEL2,
+                WrapContents = false,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink
+            };
+            _runBtn.Margin = new Padding(0, 27, 0, 0);
+            runFlp.Controls.Add(_runBtn);
+            _resultCard.Controls.Add(_resultTier);
+            _resultCard.Controls.Add(_resultMain);
+            _resultCard.Controls.Add(_resultSub);
+            _resultCard.Controls.Add(runFlp);
 
-            taskPanel.Controls.Add(taskTitle);
-            taskPanel.Controls.Add(taskSub);
-            taskPanel.Controls.Add(_taskBox);
-            taskPanel.Controls.Add(chipsRow);
-            taskPanel.Controls.Add(runBtn);
-            taskPanel.Controls.Add(analyzeBtn);
-            taskPanel.Controls.Add(clearBtn);
-            taskPanel.Controls.Add(_reasonLabel);
-            runBtn.Location = new Point(taskPanel.Width - 14 - runBtn.Width, 246);
-            analyzeBtn.Location = new Point(runBtn.Left - 8 - analyzeBtn.Width, 246);
-            clearBtn.Location = new Point(analyzeBtn.Left - 8 - clearBtn.Width, 246);
-            runBtn.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            analyzeBtn.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            clearBtn.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            var step3 = new Label
+            {
+                Text = "3  Model tersedia \u2014 klik Use untuk pilih manual",
+                AutoSize = true,
+                ForeColor = TEXT,
+                BackColor = BG,
+                Font = Semibold(10f),
+                Margin = new Padding(2, 8, 0, 0)
+            };
+            _modelsHint = new Label { Text = "", AutoSize = true, ForeColor = MUTED, BackColor = BG, Font = new Font("Segoe UI", 8f), Margin = new Padding(2, 0, 0, 0) };
 
-            // models area
-            var modelsPanel = new Panel { Dock = DockStyle.Fill, BackColor = PANEL, Padding = new Padding(14, 10, 14, 10) };
-            var modelsTitle = new Label { Text = "AVAILABLE MODELS", AutoSize = true, ForeColor = TEXT, Font = Semibold(10), Location = new Point(14, 6) };
-            _modelsHint = new Label { Text = "", AutoSize = true, ForeColor = MUTED, Location = new Point(200, 10) };
+            var modelsScroll = new Panel { Dock = DockStyle.Fill, BackColor = BG, AutoScroll = true, Margin = new Padding(2, 2, 6, 2) };
             _modelsTlp = new TableLayoutPanel
             {
                 ColumnCount = 1,
-                AutoScroll = true,
-                BackColor = PANEL,
-                Dock = DockStyle.Fill,
-                Padding = new Padding(0, 28, 12, 0)
+                AutoSize = true,
+                BackColor = BG,
+                Dock = DockStyle.Top,
+                Padding = new Padding(0, 2, 6, 8)
             };
             _modelsTlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            modelsPanel.Controls.Add(_modelsTlp);
-            modelsPanel.Controls.Add(modelsTitle);
-            modelsPanel.Controls.Add(_modelsHint);
+            modelsScroll.Controls.Add(_modelsTlp);
 
-            var statusStrip = new Panel { Dock = DockStyle.Bottom, Height = 26, BackColor = BG };
-            _statusLabel = new Label { Text = "", AutoSize = true, ForeColor = MUTED, Font = new Font("Segoe UI", 7.5f), Location = new Point(18, 6) };
+            main.Controls.Add(step1, 0, 0);
+            main.Controls.Add(_taskBox, 0, 1);
+            main.Controls.Add(buttonsRow, 0, 2);
+            main.Controls.Add(_resultCard, 0, 3);
+            main.Controls.Add(step3, 0, 4);
+            main.Controls.Add(modelsScroll, 0, 5);
+
+            var statusStrip = new Panel { Dock = DockStyle.Bottom, Height = 24, BackColor = BG };
+            _statusLabel = new Label { Text = "", AutoSize = true, ForeColor = MUTED, Font = new Font("Segoe UI", 7.5f), Location = new Point(18, 5) };
             statusStrip.Controls.Add(_statusLabel);
 
-            var body = new Panel { Dock = DockStyle.Fill, BackColor = BG, Padding = new Padding(8, 10, 12, 8) };
-            body.Controls.Add(modelsPanel);
-            body.Controls.Add(taskPanel);
-            body.Controls.Add(sidebar);
+            root.Controls.Add(sidebar, 0, 0);
+            root.Controls.Add(main, 1, 0);
 
-            // urutan penting: body (fill) ditambah duluan, lalu bottom & top
-            Controls.Add(body);
+            // urutan dock: fill dulu, lalu bottom & top diproses lebih akhir
+            Controls.Add(root);
             Controls.Add(statusStrip);
             Controls.Add(topbar);
-
-            topbar.Resize += delegate
-            {
-                refreshBtn.Location = new Point(topbar.Width - refreshBtn.Width - 16, 18);
-                settingsBtn.Location = new Point(refreshBtn.Left - 8 - settingsBtn.Width, 18);
-                sub.Location = new Point(settingsBtn.Left - sub.PreferredWidth - 14, 22);
-            };
-            topbar.Width = topbar.Width; // trigger handler pertama
         }
 
         void RefreshCards()
@@ -917,10 +1219,11 @@ namespace ZwartFlow
             foreach (var e in _entries.Values)
             {
                 var cardKey = e.Key;
-                var root = new Panel { BackColor = PANEL, Margin = new Padding(0, 3, 0, 3), Padding = new Padding(8, 6, 8, 6) };
+                var root = new Panel { BackColor = PANEL, Margin = new Padding(0, 3, 0, 3), Padding = new Padding(10, 8, 8, 8) };
+                var strip = new Panel { BackColor = ACCENT, Width = 4, Dock = DockStyle.Left, Visible = false };
                 var inner = new Panel { Dock = DockStyle.Fill, BackColor = PANEL };
-                var titleLb = new Label { Text = e.Name, AutoSize = true, ForeColor = e.Kind == "desktop" ? MUTED : TEXT, Font = Semibold(9.5f), Location = new Point(40, 2) };
-                var statusLb = new Label { Text = "memeriksa\u2026", AutoSize = true, ForeColor = MUTED, Font = new Font("Segoe UI", 7.5f), Location = new Point(40, 24) };
+                var titleLb = new Label { Text = e.Name, AutoSize = true, ForeColor = e.Kind == "desktop" ? MUTED : TEXT, Font = Semibold(9.5f), Location = new Point(46, 4) };
+                var statusLb = new Label { Text = "memeriksa\u2026", AutoSize = true, ForeColor = MUTED, Font = new Font("Segoe UI", 7.5f), Location = new Point(46, 28) };
 
                 EventHandler click = delegate { SelectEntry(cardKey); };
                 root.Click += click;
@@ -931,81 +1234,117 @@ namespace ZwartFlow
                 root.MouseEnter += delegate { if (_selectedKey != cardKey) root.BackColor = PANEL2; };
                 root.MouseLeave += delegate { if (_selectedKey != cardKey) root.BackColor = PANEL; };
 
+                root.Controls.Add(strip);
                 root.Controls.Add(inner);
                 inner.Controls.Add(titleLb);
                 inner.Controls.Add(statusLb);
 
-                var icon = new Panel { Size = new Size(30, 30), BackColor = PANEL, Location = new Point(6, 8) };
+                var icon = new Panel { Size = new Size(32, 32), BackColor = PANEL, Location = new Point(8, 9) };
                 icon.Click += click;
                 icon.MouseEnter += delegate { if (_selectedKey != cardKey) root.BackColor = PANEL2; };
                 icon.MouseLeave += delegate { if (_selectedKey != cardKey) root.BackColor = PANEL; };
-                icon.Paint += (s, ev) => DrawGlyph(ev.Graphics, icon.ClientRectangle, cardKey, e.Kind == "desktop", e.Kind == "desktop" ? MUTED : TEXT, MUTED);
+                icon.Paint += (s, ev) => DrawGlyph(ev.Graphics, icon.ClientRectangle, cardKey, e.Kind == "desktop", TEXT, MUTED);
                 inner.Controls.Add(icon);
                 icon.BringToFront();
 
                 _cardPanels[cardKey] = root;
                 _cardStatus[cardKey] = statusLb;
+                _cardStrips[cardKey] = strip;
                 _cardsTlp.RowCount++;
-                _cardsTlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
+                _cardsTlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
                 _cardsTlp.Controls.Add(root, 0, _cardsTlp.RowCount - 1);
                 root.Dock = DockStyle.Fill;
+            }
+        }
+
+        // ============================================================ logos
+
+        string BrandKey(string entryKey)
+        {
+            var k = entryKey.ToLowerInvariant();
+            if (k.StartsWith("codex")) return "codex";
+            if (k.StartsWith("claude")) return "claude";
+            if (k.StartsWith("antigravity")) return "antigravity";
+            if (k.StartsWith("gemini")) return "gemini";
+            if (k.StartsWith("opencode")) return "opencode";
+            if (k.StartsWith("commandcode")) return "commandcode";
+            return null;
+        }
+
+        void LoadLogos()
+        {
+            foreach (var name in new[] { "codex", "claude", "antigravity", "gemini", "opencode", "commandcode" })
+            {
+                try
+                {
+                    using (var s = typeof(MainForm).Assembly.GetManifestResourceStream("ZwartFlow.logos." + name + ".png"))
+                    {
+                        if (s == null) continue;
+                        using (var mem = new MemoryStream())
+                        {
+                            s.CopyTo(mem);
+                            _logos[name] = Image.FromStream(mem);
+                        }
+                    }
+                }
+                catch { }
             }
         }
 
         void DrawGlyph(Graphics g, Rectangle r, string key, bool desktop, Color fg, Color muted)
         {
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            var cx = r.X + r.Width / 2f;
-            var cy = r.Y + r.Height / 2f;
-            var pen = new Pen(desktop ? muted : fg, 2f);
-            if (key.StartsWith("codex"))
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+
+            var brand = BrandKey(key);
+            Image logo;
+            if (brand != null && _logos.TryGetValue(brand, out logo))
             {
-                for (int i = 0; i < 6; i++)
-                    g.DrawArc(pen, cx - 9, cy - 9, 18, 18, i * 60 + 180, 42);
-            }
-            else if (key.StartsWith("claude"))
-            {
-                g.DrawLine(pen, cx, cy - 9, cx, cy + 9);
-                g.DrawLine(pen, cx - 9, cy, cx + 9, cy);
-                g.DrawLine(pen, cx - 6, cy - 6, cx + 6, cy + 6);
-                g.DrawLine(pen, cx + 6, cy - 6, cx - 6, cy + 6);
-            }
-            else if (key == "antigravity")
-            {
-                g.DrawArc(new Pen(muted, 1.5f), cx - 11, cy - 11, 22, 22, 200, 140);
-                g.DrawLine(pen, cx - 6, cy + 6, cx, cy - 7);
-                g.DrawLine(pen, cx, cy - 7, cx + 6, cy + 6);
-                g.DrawLine(pen, cx - 3, cy + 2, cx + 3, cy + 2);
-            }
-            else if (key == "gemini")
-            {
-                var pts = new[]
+                float box = r.Width - 4f;
+                float scale = Math.Min(box / logo.Width, box / logo.Height);
+                float w = logo.Width * scale, h = logo.Height * scale;
+                var dest = new RectangleF(r.X + (r.Width - w) / 2f, r.Y + (r.Height - h) / 2f, w, h);
+                g.DrawImage(logo, dest);
+                if (desktop)
                 {
-                    new PointF(cx, cy - 9), new PointF(cx + 3, cy - 3), new PointF(cx + 9, cy),
-                    new PointF(cx + 3, cy + 3), new PointF(cx, cy + 9), new PointF(cx - 3, cy + 3),
-                    new PointF(cx - 9, cy), new PointF(cx - 3, cy - 3)
-                };
-                g.FillPolygon(new SolidBrush(fg), pts);
+                    var cx = r.X + r.Width / 2f;
+                    var cy = r.Y + r.Height / 2f;
+                    var radius = r.Width / 2f;
+                    using (var ring = new Pen(Color.FromArgb(139, 149, 165), 1.4f))
+                        g.DrawEllipse(ring, cx - radius, cy - radius, radius * 2f - 1f, radius * 2f - 1f);
+                }
+                return;
             }
-            else if (key.StartsWith("opencode"))
-            {
-                g.DrawLine(pen, cx - 5, cy - 5, cx - 9, cy);
-                g.DrawLine(pen, cx - 9, cy, cx - 5, cy + 5);
-                g.DrawLine(pen, cx + 5, cy - 5, cx + 9, cy);
-                g.DrawLine(pen, cx + 9, cy, cx + 5, cy + 5);
-            }
-            else
-            {
-                g.DrawEllipse(pen, cx - 9, cy - 9, 18, 18);
-                g.DrawLine(pen, cx - 4, cy, cx + 4, cy);
-                g.DrawLine(pen, cx, cy - 4, cx, cy + 4);
-            }
+
+            // fallback: monogram brand
+            string mono;
+            Color color;
+            if (key.StartsWith("codex")) { mono = "CX"; color = Color.FromArgb(16, 163, 127); }
+            else if (key.StartsWith("claude")) { mono = "CL"; color = Color.FromArgb(217, 119, 87); }
+            else if (key.StartsWith("antigravity")) { mono = "AG"; color = Color.FromArgb(76, 141, 255); }
+            else if (key == "gemini") { mono = "GM"; color = Color.FromArgb(139, 92, 246); }
+            else if (key.StartsWith("opencode")) { mono = "OC"; color = Color.FromArgb(245, 158, 11); }
+            else if (key.StartsWith("commandcode")) { mono = "CC"; color = Color.FromArgb(56, 189, 248); }
+            else { mono = "+"; color = Color.FromArgb(120, 130, 145); }
+
+            var cx2 = r.X + r.Width / 2f;
+            var cy2 = r.Y + r.Height / 2f;
+            var radius2 = r.Width / 2f - 1f;
+
+            using (var brush = new SolidBrush(color))
+                g.FillEllipse(brush, cx2 - radius2, cy2 - radius2, radius2 * 2f, radius2 * 2f);
+
             if (desktop)
             {
-                var dp = new Pen(muted, 1.6f);
-                g.DrawRectangle(dp, cx - 6, cy + 2, 12, 7);
-                g.DrawLine(dp, cx - 10, cy + 10, cx + 10, cy + 10);
+                using (var ring = new Pen(Color.FromArgb(230, 234, 240), 1.6f))
+                    g.DrawEllipse(ring, cx2 - radius2 - 2f, cy2 - radius2 - 2f, radius2 * 2f + 4f, radius2 * 2f + 4f);
             }
+
+            var font = new Font("Segoe UI", 7.5f, FontStyle.Bold);
+            var sz = g.MeasureString(mono, font);
+            using (var brush = new SolidBrush(Color.White))
+                g.DrawString(mono, font, brush, cx2 - sz.Width / 2f, cy2 - sz.Height / 2f);
         }
 
         void UpdateStatusSummary()
@@ -1050,7 +1389,10 @@ namespace ZwartFlow
             _selectedKey = key;
             foreach (var kv in _cardPanels)
             {
-                kv.Value.BackColor = kv.Key == key ? PANEL2 : PANEL;
+                bool sel = kv.Key == key;
+                kv.Value.BackColor = sel ? PANEL2 : PANEL;
+                Panel strip;
+                if (_cardStrips.TryGetValue(kv.Key, out strip)) strip.Visible = sel;
             }
             ShowMain();
         }
@@ -1105,7 +1447,7 @@ namespace ZwartFlow
             if (e.Kind == "desktop")
             {
                 AddRowNote("Provider ini adalah app desktop. Pemilihan model otomatis hanya berlaku untuk CLI.");
-                if (st.DesktopPath != null) AddRowOpenApp("Buka " + e.Name, st.DesktopPath);
+                if (st.LaunchTarget != null) AddRowOpenApp("Buka " + e.Name, st.LaunchTarget);
                 else AddRowNote("Desktop app tidak ditemukan - periksa path di Settings.");
                 return;
             }
@@ -1113,7 +1455,7 @@ namespace ZwartFlow
             if (st.Models == null || st.Models.Count == 0)
             {
                 AddRowNote("Belum ada daftar model: " + st.Note);
-                if (st.DesktopPath != null) AddRowOpenApp("Buka Desktop App", st.DesktopPath);
+                if (st.LaunchTarget != null) AddRowOpenApp("Buka Desktop App", st.LaunchTarget);
                 return;
             }
 
@@ -1136,17 +1478,17 @@ namespace ZwartFlow
             AddModelRow(lb, 0);
         }
 
-        void AddRowOpenApp(string label, string path)
+        void AddRowOpenApp(string label, string target)
         {
             var row = new Panel { BackColor = PANEL2, Margin = new Padding(0, 3, 0, 3), Padding = new Padding(10, 8, 10, 8) };
             var btn = FlatAccent(label, delegate
             {
-                try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
+                try { LaunchApp(target); }
                 catch (Exception ex) { MessageBox.Show("Gagal membuka: " + ex.Message, "ZwartFlow", MessageBoxButtons.OK, MessageBoxIcon.Error); }
             });
             btn.Location = new Point(10, 8);
             row.Controls.Add(btn);
-            var lb = new Label { Text = path, ForeColor = MUTED, AutoSize = true, BackColor = PANEL2, Font = new Font("Segoe UI", 8f) };
+            var lb = new Label { Text = target.StartsWith("aumid:", StringComparison.OrdinalIgnoreCase) ? "Microsoft Store app" : target, ForeColor = MUTED, AutoSize = true, BackColor = PANEL2, Font = new Font("Segoe UI", 8f) };
             lb.Location = new Point(btn.Right + 14, 16);
             row.Controls.Add(lb);
             AddModelRow(row, 44);
@@ -1156,8 +1498,12 @@ namespace ZwartFlow
         {
             var row = new Panel { BackColor = PANEL2, Margin = new Padding(0, 3, 0, 3), Padding = new Padding(12, 8, 12, 8) };
 
-            var nameLabel = new Label { Text = m.Label, AutoSize = true, ForeColor = TEXT, BackColor = PANEL2, Font = Semibold(9.5f), Location = new Point(14, 8) };
-            var idLabel = new Label { Text = m.Id, AutoSize = true, ForeColor = MUTED, BackColor = PANEL2, Font = new Font("Segoe UI", 7.5f), Location = new Point(14, 30) };
+            var icon = new Panel { Size = new Size(30, 30), BackColor = PANEL2, Location = new Point(14, 9) };
+            icon.Paint += (s, ev) => DrawGlyph(ev.Graphics, icon.ClientRectangle, e.Key, false, TEXT, MUTED);
+            row.Controls.Add(icon);
+
+            var nameLabel = new Label { Text = m.Label, AutoSize = true, ForeColor = TEXT, BackColor = PANEL2, Font = Semibold(9.5f), Location = new Point(54, 4) };
+            var idLabel = new Label { Text = m.Id, AutoSize = true, ForeColor = MUTED, BackColor = PANEL2, Font = new Font("Segoe UI", 7.5f), Location = new Point(54, 26) };
             row.Controls.Add(nameLabel);
             row.Controls.Add(idLabel);
 
@@ -1170,27 +1516,32 @@ namespace ZwartFlow
                 ForeColor = m.Tier == "fast" ? FAST : (m.Tier == "heavy" ? HEAVY : BAL),
                 BackColor = m.Tier == "fast" ? CHIP_FAST_BG : (m.Tier == "heavy" ? CHIP_HEAVY_BG : CHIP_BAL_BG)
             };
-            var chipX = Math.Max(nameLabel.PreferredWidth + 24, idLabel.PreferredWidth + 24);
-            tierChip.Location = new Point(chipX, 12);
+            var chipX = 54 + Math.Max(nameLabel.PreferredWidth + 14, idLabel.PreferredWidth + 14);
+            tierChip.Location = new Point(chipX, 10);
             row.Controls.Add(tierChip);
 
             if (m.Source == "alias")
             {
                 var alias = new Label { Text = "alias", AutoSize = true, ForeColor = MUTED, BackColor = PANEL2, Font = new Font("Segoe UI", 7.5f) };
-                alias.Location = new Point(tierChip.Right + 10, 17);
+                alias.Location = new Point(tierChip.Right + 10, 15);
                 row.Controls.Add(alias);
             }
 
             var useBtn = Flat("Use", delegate { UseModel(e, m); });
-            useBtn.Location = new Point(row.Width - useBtn.Width - 16, 0);
-            useBtn.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            useBtn.Location = new Point(0, 0); // diposisikan on resize
-            row.Resize += delegate { useBtn.Location = new Point(row.Width - useBtn.Width - 14, 14); };
-            row.PerformLayout();
-            useBtn.Location = new Point(row.Width - useBtn.Width - 14, 14);
-            row.Controls.Add(useBtn);
+            var useFlp = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right,
+                FlowDirection = FlowDirection.TopDown,
+                BackColor = PANEL2,
+                WrapContents = false,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink
+            };
+            useBtn.Margin = new Padding(0, 10, 0, 0);
+            useFlp.Controls.Add(useBtn);
+            row.Controls.Add(useFlp);
 
-            AddModelRow(row, 58);
+            AddModelRow(row, 52);
         }
 
         void AddModelRow(Control c, int absoluteHeight)
@@ -1217,12 +1568,12 @@ namespace ZwartFlow
             _selectedProviderKey = e.Key;
             var conf = ProviderConf(e.Key);
             var name = conf != null && conf.ContainsKey("name") ? Str(conf["name"]) : e.Key;
-            _chipProvider.Text = "PROVIDER  " + name;
-            _chipTier.Text = "TIER  " + m.Tier.ToUpperInvariant();
-            _chipTier.ForeColor = m.Tier == "fast" ? FAST : (m.Tier == "heavy" ? HEAVY : BAL);
-            _chipTier.BackColor = m.Tier == "fast" ? CHIP_FAST_BG : (m.Tier == "heavy" ? CHIP_HEAVY_BG : CHIP_BAL_BG);
-            _chipDeleg.Text = "MODEL  " + m.Id;
-            _reasonLabel.Text = "Model dipilih manual: " + m.Label + " (" + m.Id + "). Klik Run Selected untuk menjalankan.";
+            _resultTier.Text = m.Tier.ToUpperInvariant();
+            _resultTier.ForeColor = m.Tier == "fast" ? FAST : (m.Tier == "heavy" ? HEAVY : BAL);
+            _resultTier.BackColor = m.Tier == "fast" ? CHIP_FAST_BG : (m.Tier == "heavy" ? CHIP_HEAVY_BG : CHIP_BAL_BG);
+            _resultMain.Text = name + "  \u00b7  " + m.Label;
+            _resultSub.Text = "Model dipilih manual (" + m.Id + "). Klik Run Selected untuk menjalankan.";
+            _runBtn.Enabled = true;
         }
 
         string PrefProvider()
@@ -1231,7 +1582,7 @@ namespace ZwartFlow
             var pref = ui != null && ui.ContainsKey("preferred_provider") ? Str(ui["preferred_provider"]) : "";
             if (!string.IsNullOrEmpty(pref) && _states.ContainsKey(pref) && _states[pref].Done && !string.IsNullOrEmpty(_states[pref].CliPath))
                 return pref;
-            foreach (var k in new[] { "codex-cli", "antigravity", "claude-cli", "gemini", "opencode", "custom" })
+            foreach (var k in new[] { "codex-cli", "commandcode", "claude-cli", "antigravity-cli", "gemini", "opencode", "custom" })
             {
                 ProviderState s;
                 if (_states.TryGetValue(k, out s) && s.Done && s.CliPath != null) return k;
@@ -1287,14 +1638,14 @@ namespace ZwartFlow
             var chipBg = r.Tier == "fast" ? CHIP_FAST_BG : (r.Tier == "heavy" ? CHIP_HEAVY_BG : CHIP_BAL_BG);
             var conf = ProviderConf(key);
             var provName = conf != null && conf.ContainsKey("name") ? Str(conf["name"]) : key;
-            _chipProvider.Text = "PROVIDER  " + provName;
-            _chipTier.Text = "TIER  " + r.Tier.ToUpperInvariant();
-            _chipTier.ForeColor = chipColor;
-            _chipTier.BackColor = chipBg;
-            _chipDeleg.Text = "DELEGASI  " + r.Delegation;
+            _resultTier.Text = r.Tier.ToUpperInvariant();
+            _resultTier.ForeColor = chipColor;
+            _resultTier.BackColor = chipBg;
+            _resultMain.Text = provName + "  \u00b7  " + model.Label;
             var why = string.Join(" \u00b7 ", r.Reasons.ToArray());
-            _reasonLabel.Text = "Score " + (r.Score >= 0 ? "+" : "") + r.Score + " \u2192 " + r.Tier.ToUpper()
-                + "  \u00b7  " + why + "  \u00b7  Model: " + model.Label + " (" + model.Id + ")";
+            _resultSub.Text = "Delegasi: " + r.Delegation + "   \u00b7   Score " + (r.Score >= 0 ? "+" : "") + r.Score
+                + " (" + why + ")   \u00b7   " + model.Id;
+            _runBtn.Enabled = true;
         }
 
         void RunSelected()
@@ -1528,7 +1879,8 @@ namespace ZwartFlow
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Padding = new Padding(4),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                UseMnemonic = false
             };
             b.FlatAppearance.MouseOverBackColor = BORDER;
             b.FlatAppearance.BorderSize = 0;

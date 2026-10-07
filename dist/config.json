@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "ui": {
     "preferred_provider": "codex-cli",
     "confirm_before_run": true
@@ -14,7 +14,7 @@
       "name": "Codex CLI",
       "vendor": "OpenAI",
       "kind": "cli",
-      "executable_candidates": ["codex.exe", "codex.cmd", "codex"],
+      "executable_candidates": ["codex.exe", "codex.cmd", "codex", "%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\*\\codex.exe"],
       "desktop_candidates": [],
       "discover": {
         "type": "command_json",
@@ -29,17 +29,18 @@
       "name": "Codex App",
       "vendor": "OpenAI",
       "kind": "desktop",
+      "store": "^OpenAI\\.Codex$",
       "executable_candidates": [],
       "desktop_candidates": [
-        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\Codex.exe",
-        "%LOCALAPPDATA%\\Programs\\Codex\\Codex.exe"
+        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\codex.exe",
+        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\OpenAI.Codex_*\\codex.exe"
       ]
     },
     "claude-cli": {
       "name": "Claude CLI",
       "vendor": "Anthropic",
       "kind": "cli",
-      "executable_candidates": ["claude.exe", "claude.cmd", "claude"],
+      "executable_candidates": ["claude.exe", "claude.cmd", "claude", "%APPDATA%\\Claude\\claude-code\\*\\*\\claude.exe", "%APPDATA%\\Claude\\claude-code\\*\\claude.exe", "%USERPROFILE%\\.local\\bin\\claude.exe"],
       "desktop_candidates": [],
       "discover": {
         "type": "aliases",
@@ -58,14 +59,15 @@
       "name": "Claude App",
       "vendor": "Anthropic",
       "kind": "desktop",
+      "store": "^Claude$",
       "executable_candidates": [],
       "desktop_candidates": [
-        "%LOCALAPPDATA%\\Programs\\Claude\\Claude.exe",
-        "%LOCALAPPDATA%\\AnthropicClaude\\Claude.exe"
+        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\claude-desktop.exe",
+        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\Claude_*\\claude-desktop.exe"
       ]
     },
-    "antigravity": {
-      "name": "Antigravity",
+    "antigravity-cli": {
+      "name": "Antigravity CLI",
       "vendor": "Google",
       "kind": "cli",
       "executable_candidates": ["agy.exe", "agy.cmd", "agy", "%LOCALAPPDATA%\\agy\\bin\\agy.exe"],
@@ -78,6 +80,17 @@
       "run": {
         "command": ["-p", "{prompt}", "--model", "{model}"]
       }
+    },
+    "antigravity-app": {
+      "name": "Antigravity IDE",
+      "vendor": "Google",
+      "kind": "desktop",
+      "store": "^Antigravity( IDE)?$",
+      "executable_candidates": [],
+      "desktop_candidates": [
+        "%LOCALAPPDATA%\\Programs\\Antigravity IDE\\Antigravity IDE.exe",
+        "%LOCALAPPDATA%\\Programs\\Antigravity\\Antigravity.exe"
+      ]
     },
     "gemini": {
       "name": "Gemini CLI",
@@ -98,10 +111,10 @@
       }
     },
     "opencode": {
-      "name": "OpenCode",
+      "name": "OpenCode CLI",
       "vendor": "Community",
       "kind": "cli",
-      "executable_candidates": ["opencode.exe", "opencode.cmd", "opencode"],
+      "executable_candidates": ["opencode.exe", "opencode.cmd", "opencode", "%APPDATA%\\npm\\opencode.cmd"],
       "desktop_candidates": [],
       "discover": {
         "type": "command_table",
@@ -110,6 +123,21 @@
       },
       "run": {
         "command": ["run", "--model", "{model}", "{prompt}"]
+      }
+    },
+    "commandcode": {
+      "name": "Command Code CLI",
+      "vendor": "Command Code",
+      "kind": "cli",
+      "executable_candidates": ["cmdc.exe", "cmdc.cmd", "cmdc", "%APPDATA%\\npm\\cmdc.cmd"],
+      "desktop_candidates": [],
+      "discover": {
+        "type": "command_table",
+        "command": ["--list-models"],
+        "timeout": 30
+      },
+      "run": {
+        "command": ["-p", "-m", "{model}", "{prompt}"]
       }
     },
     "custom": {
