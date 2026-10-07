@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "general": {
+    "default_agent": "auto",
+    "default_mode": "auto",
+    "auto_delegate": false,
+    "confirm_before_run": true,
+    "working_directory": ""
+  },
+  "agents": {
+    "codex": {
+      "label": "Codex CLI",
+      "kind": "cli",
+      "executable": "codex",
+      "args": [
+        "exec",
+        "--model",
+        "{model}",
+        "--json",
+        "{prompt}"
+      ],
+      "models": {
+        "fast": "gpt-5.4-mini",
+        "balanced": "gpt-5.5",
+        "heavy": "gpt-5.5"
+      }
+    },
+    "claude": {
+      "label": "Claude Code",
+      "kind": "cli",
+      "executable": "claude",
+      "args": [
+        "-p",
+        "--model",
+        "{model}",
+        "--output-format",
+        "json",
+        "{prompt}"
+      ],
+      "models": {
+        "fast": "haiku",
+        "balanced": "sonnet",
+        "heavy": "opus"
+      }
+    },
+    "antigravity": {
+      "label": "Antigravity CLI",
+      "kind": "cli",
+      "executable": "agy",
+      "args": [
+        "-p",
+        "{prompt}",
+        "--model",
+        "{model}",
+        "--output-format",
+        "text"
+      ],
+      "models": {
+        "fast": "gemini-3.8-flash-medium",
+        "balanced": "gemini-3.8-flash-high",
+        "heavy": "gemini-3.1-pro-high"
+      }
+    },
+    "custom": {
+      "label": "Custom Agent",
+      "kind": "cli",
+      "executable": "myagent",
+      "args": [
+        "--model",
+        "{model}",
+        "{prompt}"
+      ],
+      "models": {
+        "fast": "light",
+        "balanced": "medium",
+        "heavy": "heavy"
+      }
+    },
+    "claude_desktop": {
+      "label": "Claude Desktop (UI launcher)",
+      "kind": "desktop_ui",
+      "executable": "",
+      "args": [],
+      "models": {
+        "fast": "manual",
+        "balanced": "manual",
+        "heavy": "manual"
+      }
+    }
+  }
+}

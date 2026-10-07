@@ -1,6 +1,3 @@
 build/
-.venv/
+obj/
 __pycache__/
-*.pyc
-*.spec
-.env

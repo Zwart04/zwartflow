@@ -1,7 +1,7 @@
 {
-  "version": 4,
+  "version": 5,
   "ui": {
-    "preferred_provider": "codex",
+    "preferred_provider": "codex-cli",
     "confirm_before_run": true
   },
   "router": {
@@ -10,14 +10,12 @@
     "max_parallel_workers": 4
   },
   "providers": {
-    "codex": {
-      "name": "Codex",
+    "codex-cli": {
+      "name": "Codex CLI",
       "vendor": "OpenAI",
+      "kind": "cli",
       "executable_candidates": ["codex.exe", "codex.cmd", "codex"],
-      "desktop_candidates": [
-        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\Codex.exe",
-        "%LOCALAPPDATA%\\Programs\\Codex\\Codex.exe"
-      ],
+      "desktop_candidates": [],
       "discover": {
         "type": "command_json",
         "command": ["debug", "models"],
@@ -27,14 +25,22 @@
         "command": ["exec", "--model", "{model}", "{prompt}"]
       }
     },
-    "claude": {
-      "name": "Claude Code",
-      "vendor": "Anthropic",
-      "executable_candidates": ["claude.exe", "claude.cmd", "claude"],
+    "codex-app": {
+      "name": "Codex App",
+      "vendor": "OpenAI",
+      "kind": "desktop",
+      "executable_candidates": [],
       "desktop_candidates": [
-        "%LOCALAPPDATA%\\Programs\\Claude\\Claude.exe",
-        "%LOCALAPPDATA%\\AnthropicClaude\\Claude.exe"
-      ],
+        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\Codex.exe",
+        "%LOCALAPPDATA%\\Programs\\Codex\\Codex.exe"
+      ]
+    },
+    "claude-cli": {
+      "name": "Claude CLI",
+      "vendor": "Anthropic",
+      "kind": "cli",
+      "executable_candidates": ["claude.exe", "claude.cmd", "claude"],
+      "desktop_candidates": [],
       "discover": {
         "type": "aliases",
         "aliases": [
@@ -42,19 +48,28 @@
           { "id": "sonnet", "label": "Sonnet", "tier": "balanced" },
           { "id": "opus", "label": "Opus", "tier": "heavy" }
         ],
-        "note": "Claude Code tidak punya command resmi untuk list model non-interaktif; ditampilkan sebagai alias."
+        "note": "Claude CLI tidak punya command resmi untuk list model non-interaktif; ditampilkan sebagai alias."
       },
       "run": {
         "command": ["-p", "--model", "{model}", "{prompt}"]
       }
     },
+    "claude-app": {
+      "name": "Claude App",
+      "vendor": "Anthropic",
+      "kind": "desktop",
+      "executable_candidates": [],
+      "desktop_candidates": [
+        "%LOCALAPPDATA%\\Programs\\Claude\\Claude.exe",
+        "%LOCALAPPDATA%\\AnthropicClaude\\Claude.exe"
+      ]
+    },
     "antigravity": {
       "name": "Antigravity",
       "vendor": "Google",
+      "kind": "cli",
       "executable_candidates": ["agy.exe", "agy.cmd", "agy", "%LOCALAPPDATA%\\agy\\bin\\agy.exe"],
-      "desktop_candidates": [
-        "%LOCALAPPDATA%\\Programs\\Antigravity\\Antigravity.exe"
-      ],
+      "desktop_candidates": [],
       "discover": {
         "type": "command_table",
         "command": ["models"],
@@ -67,6 +82,7 @@
     "gemini": {
       "name": "Gemini CLI",
       "vendor": "Google",
+      "kind": "cli",
       "executable_candidates": ["gemini.exe", "gemini.cmd", "gemini"],
       "desktop_candidates": [],
       "discover": {
@@ -75,7 +91,7 @@
           { "id": "gemini-2.5-flash", "label": "2.5 Flash", "tier": "fast" },
           { "id": "gemini-2.5-pro", "label": "2.5 Pro", "tier": "heavy" }
         ],
-        "note": "Alias resmi Google; cek `gemini --help` untuk varian terbaru."
+        "note": "Alias resmi Google."
       },
       "run": {
         "command": ["-m", "{model}", "{prompt}"]
@@ -84,6 +100,7 @@
     "opencode": {
       "name": "OpenCode",
       "vendor": "Community",
+      "kind": "cli",
       "executable_candidates": ["opencode.exe", "opencode.cmd", "opencode"],
       "desktop_candidates": [],
       "discover": {
@@ -98,6 +115,7 @@
     "custom": {
       "name": "Custom Agent",
       "vendor": "Lainnya",
+      "kind": "cli",
       "executable_candidates": [],
       "desktop_candidates": [],
       "discover": {

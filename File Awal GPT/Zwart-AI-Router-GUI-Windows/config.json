@@ -1,0 +1,115 @@
+{
+  "version": 3,
+  "ui": {
+    "theme": "light",
+    "default_provider": "auto",
+    "preferred_provider": "codex",
+    "confirm_before_run": true
+  },
+  "providers": {
+    "codex": {
+      "name": "Codex",
+      "provider": "OpenAI",
+      "kind": "cli",
+      "executable_candidates": [
+        "codex.exe",
+        "codex.cmd",
+        "codex"
+      ],
+      "desktop_candidates": [
+        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\Codex.exe",
+        "%LOCALAPPDATA%\\Programs\\Codex\\Codex.exe"
+      ],
+      "discover": {
+        "type": "codex_debug_models",
+        "command": [
+          "debug",
+          "models"
+        ]
+      },
+      "run": {
+        "command": [
+          "exec",
+          "--model",
+          "{model}",
+          "{prompt}"
+        ]
+      }
+    },
+    "claude": {
+      "name": "Claude Code",
+      "provider": "Anthropic",
+      "kind": "cli",
+      "executable_candidates": [
+        "claude.exe",
+        "claude.cmd",
+        "claude"
+      ],
+      "desktop_candidates": [
+        "%LOCALAPPDATA%\\Programs\\Claude\\Claude.exe",
+        "%LOCALAPPDATA%\\Programs\\Claude\\Claude Desktop.exe",
+        "%LOCALAPPDATA%\\AnthropicClaude\\Claude.exe"
+      ],
+      "discover": {
+        "type": "claude_aliases"
+      },
+      "run": {
+        "command": [
+          "-p",
+          "--model",
+          "{model}",
+          "{prompt}"
+        ]
+      }
+    },
+    "antigravity": {
+      "name": "Antigravity",
+      "provider": "Google",
+      "kind": "cli",
+      "executable_candidates": [
+        "%LOCALAPPDATA%\\agy\\bin\\agy.exe",
+        "agy.exe",
+        "agy.cmd",
+        "agy"
+      ],
+      "desktop_candidates": [
+        "%LOCALAPPDATA%\\Programs\\Antigravity\\Antigravity.exe",
+        "%LOCALAPPDATA%\\Antigravity\\Antigravity.exe"
+      ],
+      "discover": {
+        "type": "agy_models",
+        "command": [
+          "models"
+        ]
+      },
+      "run": {
+        "command": [
+          "-p",
+          "{prompt}",
+          "--model",
+          "{model}"
+        ]
+      }
+    },
+    "custom": {
+      "name": "Custom Agent",
+      "provider": "Other",
+      "kind": "cli",
+      "executable_candidates": [],
+      "desktop_candidates": [],
+      "discover": {
+        "type": "custom_command",
+        "command": [
+          "models"
+        ]
+      },
+      "run": {
+        "command": [
+          "--model",
+          "{model}",
+          "{prompt}"
+        ]
+      }
+    }
+  }
+}
