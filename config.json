@@ -1,0 +1,116 @@
+{
+  "version": 4,
+  "ui": {
+    "preferred_provider": "codex",
+    "confirm_before_run": true
+  },
+  "router": {
+    "simple_threshold": -1,
+    "heavy_threshold": 4,
+    "max_parallel_workers": 4
+  },
+  "providers": {
+    "codex": {
+      "name": "Codex",
+      "vendor": "OpenAI",
+      "executable_candidates": ["codex.exe", "codex.cmd", "codex"],
+      "desktop_candidates": [
+        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\Codex.exe",
+        "%LOCALAPPDATA%\\Programs\\Codex\\Codex.exe"
+      ],
+      "discover": {
+        "type": "command_json",
+        "command": ["debug", "models"],
+        "timeout": 45
+      },
+      "run": {
+        "command": ["exec", "--model", "{model}", "{prompt}"]
+      }
+    },
+    "claude": {
+      "name": "Claude Code",
+      "vendor": "Anthropic",
+      "executable_candidates": ["claude.exe", "claude.cmd", "claude"],
+      "desktop_candidates": [
+        "%LOCALAPPDATA%\\Programs\\Claude\\Claude.exe",
+        "%LOCALAPPDATA%\\AnthropicClaude\\Claude.exe"
+      ],
+      "discover": {
+        "type": "aliases",
+        "aliases": [
+          { "id": "haiku", "label": "Haiku", "tier": "fast" },
+          { "id": "sonnet", "label": "Sonnet", "tier": "balanced" },
+          { "id": "opus", "label": "Opus", "tier": "heavy" }
+        ],
+        "note": "Claude Code tidak punya command resmi untuk list model non-interaktif; ditampilkan sebagai alias."
+      },
+      "run": {
+        "command": ["-p", "--model", "{model}", "{prompt}"]
+      }
+    },
+    "antigravity": {
+      "name": "Antigravity",
+      "vendor": "Google",
+      "executable_candidates": ["agy.exe", "agy.cmd", "agy", "%LOCALAPPDATA%\\agy\\bin\\agy.exe"],
+      "desktop_candidates": [
+        "%LOCALAPPDATA%\\Programs\\Antigravity\\Antigravity.exe"
+      ],
+      "discover": {
+        "type": "command_table",
+        "command": ["models"],
+        "timeout": 25
+      },
+      "run": {
+        "command": ["-p", "{prompt}", "--model", "{model}"]
+      }
+    },
+    "gemini": {
+      "name": "Gemini CLI",
+      "vendor": "Google",
+      "executable_candidates": ["gemini.exe", "gemini.cmd", "gemini"],
+      "desktop_candidates": [],
+      "discover": {
+        "type": "aliases",
+        "aliases": [
+          { "id": "gemini-2.5-flash", "label": "2.5 Flash", "tier": "fast" },
+          { "id": "gemini-2.5-pro", "label": "2.5 Pro", "tier": "heavy" }
+        ],
+        "note": "Alias resmi Google; cek `gemini --help` untuk varian terbaru."
+      },
+      "run": {
+        "command": ["-m", "{model}", "{prompt}"]
+      }
+    },
+    "opencode": {
+      "name": "OpenCode",
+      "vendor": "Community",
+      "executable_candidates": ["opencode.exe", "opencode.cmd", "opencode"],
+      "desktop_candidates": [],
+      "discover": {
+        "type": "command_table",
+        "command": ["models"],
+        "timeout": 20
+      },
+      "run": {
+        "command": ["run", "--model", "{model}", "{prompt}"]
+      }
+    },
+    "custom": {
+      "name": "Custom Agent",
+      "vendor": "Lainnya",
+      "executable_candidates": [],
+      "desktop_candidates": [],
+      "discover": {
+        "type": "aliases",
+        "aliases": [
+          { "id": "my-fast", "label": "Fast (edit config.json)", "tier": "fast" },
+          { "id": "my-heavy", "label": "Heavy (edit config.json)", "tier": "heavy" }
+        ],
+        "note": "Isi path CLI + alias model di config.json."
+      },
+      "run": {
+        "command": ["--model", "{model}", "{prompt}"]
+      }
+    }
+  }
+}
